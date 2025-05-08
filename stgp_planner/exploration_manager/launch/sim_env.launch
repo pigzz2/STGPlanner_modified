@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<launch>
+    <arg name="gazebo_gui" default="false"/>
+    <arg name="world" default="scene_2"/>
+    <param name="/use_sim_time" value="true" />
+
+    <env name="GAZEBO_MODEL_PATH" value="${GAZEBO_MODEL_PATH}:$(find exploration_manager)/mesh:$(find exploration_manager)/models"/>
+
+    <include file="$(find jackal_gazebo)/launch/jackal_world.launch">
+        <arg name="gui" value="$(arg gazebo_gui)"/>
+        <arg name="config" value="base"/>
+     
+        <arg name="x" value="0"/>
+        <arg name="y" value="0"/>
+        <arg name="z" value="1.5"/>            
+
+         <arg name="world_name" value="$(find exploration_manager)/worlds/$(arg world).world"/>
+
+    </include>
+</launch>
