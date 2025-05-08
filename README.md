@@ -1,5 +1,5 @@
 # A Skeleton-Based Topological Planner for Exploration in Complex Unknown Environments
-This repository contains the implementation of the paper "[A Skeleton-Based Topological Planner for Exploration in Complex Unknown Environments](https://arxiv.org/abs/2412.13664)", , which is accepted by ICRA 2025.
+This repository contains the implementation of the paper "[A Skeleton-Based Topological Planner for Exploration in Complex Unknown Environments](https://arxiv.org/abs/2412.13664)", which is accepted by ICRA 2025.
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ After building, source your workspace and launch the simulation and exploration 
 
 ```shell
 # Launch the simulation environment
-source devel/setup.zsh && sim_env.launch  world:=Scene4
+source devel/setup.zsh && roslaunch sim_env.launch  world:=Scene4
 
 # Launch the exploration policy
 source devel/setup.zsh && roslaunch exploration_manager explorer.launch world:=Scene4
