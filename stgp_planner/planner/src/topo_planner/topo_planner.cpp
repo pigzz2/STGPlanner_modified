@@ -1,6 +1,8 @@
 
 #include "topo_planner/topo_planner.h"
 
+#include <mutex>
+
 namespace topo_planner {
 
     TopoPlanner::TopoPlanner(ros::NodeHandle &nh, ros::NodeHandle &nh_private) :
@@ -63,7 +65,7 @@ namespace topo_planner {
 
     void
     TopoPlanner::plannerCallback(const control_planner_interface::ExplorerPlannerGoalConstPtr &goal) {
-        elements_->global_topo_map_->global_topo_update_mutex_.lock();
+        std::lock_guard<std::mutex> lock(elements_->global_topo_map_->global_topo_update_mutex_);
 
         auto start_time = std::chrono::high_resolution_clock::now();
         double start_time_second = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -137,9 +139,6 @@ namespace topo_planner {
              << (update_end_time - topo_start_time).toSec() << "\t" << topo_update_num_ << "\t"
              << sum_topo_update_time_ / topo_update_num_ << "s \t" << std::endl;
         fout.close();
-
-
-        elements_->global_topo_map_->global_topo_update_mutex_.unlock();
     }
 
     std::vector<geometry_msgs::Pose> TopoPlanner::wayPoseGeneration(rapid_cover_planner::Path &path) {

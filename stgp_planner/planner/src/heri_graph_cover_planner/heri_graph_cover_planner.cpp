@@ -1,7 +1,37 @@
 
 #include "heri_graph_cover_planner/heri_graph_cover_planner.h"
 
+#include <algorithm>
+#include <mutex>
+
 namespace heri_graph_cover_planner {
+
+namespace {
+void refreshLocalFrontiersAfterRelocate(
+    const GlobalTopoManager::Ptr &global_topo_map, int current_explore_branch) {
+  NodeQueue pending_frontiers = global_topo_map->local_frontier_labels_;
+  if (!pending_frontiers.empty()) {
+    ROS_WARN("local frontiers were not empty after relocation; merging %zu pending labels",
+             pending_frontiers.size());
+  }
+
+  global_topo_map->local_frontier_labels_.clear();
+  global_topo_map->updateLocalFrontier(current_explore_branch);
+
+  for (const auto &frontier : pending_frontiers) {
+    if (global_topo_map->heriTopo_[frontier].removed ||
+        global_topo_map->heriTopo_[frontier].confirmed) {
+      ROS_WARN("drop stale pending frontier label %d after relocation", frontier);
+      continue;
+    }
+    if (std::find(global_topo_map->local_frontier_labels_.begin(),
+                  global_topo_map->local_frontier_labels_.end(),
+                  frontier) == global_topo_map->local_frontier_labels_.end()) {
+      global_topo_map->local_frontier_labels_.push_back(frontier);
+    }
+  }
+}
+}  // namespace
 
 HeriGraphCoverPlanner::HeriGraphCoverPlanner(
     ros::NodeHandle &nh, ros::NodeHandle &nh_private,
@@ -186,8 +216,12 @@ void HeriGraphCoverPlanner::Initialize(const Point3D &current_position) {
       global_topo_map_->updateCurrentExploreBranch(
           current_explore_branch_, history_missed_branches_, passed_junctions_);
       ROS_INFO("updateCurrentExploreBranch func finished");
-      tour_topo_path_.push_back(
-          global_topo_map_->local_frontier_labels_.front());
+      if (global_topo_map_->local_frontier_labels_.empty()) {
+        ROS_WARN("no valid frontier left after changing current explore branch");
+      } else {
+        tour_topo_path_.push_back(
+            global_topo_map_->local_frontier_labels_.front());
+      }
       during_relocate_ = false;
       is_frontier_guiding_ = false;
       ROS_INFO("current_explore_branch_ changed");
@@ -301,7 +335,7 @@ void HeriGraphCoverPlanner::viewpointsFrontierGain(
 void HeriGraphCoverPlanner::planning(const geometry_msgs::Pose &current_pose,
                                      const utils::Point3D &current_directory,
                                      bool &is_successed) {
-  planner_mutex_.lock();
+  std::lock_guard<std::mutex> lock(planner_mutex_);
   solving_num_++;
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -362,7 +396,6 @@ void HeriGraphCoverPlanner::planning(const geometry_msgs::Pose &current_pose,
              << tour_points_.size() << std::endl;
   count_fout.close();
 
-  planner_mutex_.unlock();
 }
 
 bool HeriGraphCoverPlanner::heri_topo_planning(
@@ -392,8 +425,7 @@ bool HeriGraphCoverPlanner::heri_topo_planning(
       }
       if (during_relocate_) {
         if (tsp_path_.size() < 20) {
-          assert(global_topo_map_->local_frontier_labels_.empty());
-          global_topo_map_->updateLocalFrontier(current_explore_branch_);
+          refreshLocalFrontiersAfterRelocate(global_topo_map_, current_explore_branch_);
           during_relocate_ = false;
         }
       }
@@ -475,8 +507,7 @@ bool HeriGraphCoverPlanner::heri_topo_planning(
 
   if (during_relocate_) {
     if (path_segments_.size() < 3) {
-      assert(global_topo_map_->local_frontier_labels_.empty());
-      global_topo_map_->updateLocalFrontier(current_explore_branch_);
+      refreshLocalFrontiersAfterRelocate(global_topo_map_, current_explore_branch_);
       during_relocate_ = false;
     }
   }

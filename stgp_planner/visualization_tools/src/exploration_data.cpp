@@ -158,14 +158,16 @@ void exploration_data::pubExplorationData(const ros::TimerEvent &event)
                              1000000;
         exploration_data.timeConsumed = time_second - system_init_time;
 
-        if (exploration_data.exploredVolume > 0.95 * max_volume)
-        {
-            exploration_finish = true;
-            std_msgs::Bool explore_finish;
-            explore_finish.data = true;
-            explore_finish_pub.publish(explore_finish);
-            ROS_INFO("max volume threshold is reach...");
-        }
+        // Temporarily disabled: the explored-volume threshold can stop exploration
+        // while reachable frontier regions still remain.
+        // if (exploration_data.exploredVolume > 0.95 * max_volume)
+        // {
+        //     exploration_finish = true;
+        //     std_msgs::Bool explore_finish;
+        //     explore_finish.data = true;
+        //     explore_finish_pub.publish(explore_finish);
+        //     ROS_INFO("max volume threshold is reach...");
+        // }
 
         if (time_second - system_init_time > max_time)
         {

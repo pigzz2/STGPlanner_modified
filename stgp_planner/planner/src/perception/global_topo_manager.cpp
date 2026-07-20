@@ -497,7 +497,7 @@ void GlobalTopoManager::updateNodesRecursion(const int &center_label,
       crop_termination_labels_.push_back(center_label);
     }
   }
-  heriTopo_[center_label].conn_num != c_conn_num;
+  heriTopo_[center_label].conn_num = c_conn_num;
   heriTopo_[center_label].children_labels.insert(
     heriTopo_[center_label].children_labels.end(),
     new_children_labels.begin(), new_children_labels.end());
@@ -739,10 +739,17 @@ Node GlobalTopoManager::findNearestNode(double x, double y) {
 void GlobalTopoManager::updateLocalFrontier(int current_explore_branch) {
   assert(local_frontier_labels_.empty());
   Node parent_junction = heriTopo_[current_explore_branch].parent_junction_label;
-  for (auto &frontier: heriTopo_[parent_junction].children_with_unprocessed_frontier[current_explore_branch]) {
-    assert(!heriTopo_[frontier].confirmed);
-    if (heriTopo_[frontier].confirmed) continue;
+  auto &frontiers =
+      heriTopo_[parent_junction].children_with_unprocessed_frontier[current_explore_branch];
+  for (auto frontier_it = frontiers.begin(); frontier_it != frontiers.end();) {
+    const Node frontier = *frontier_it;
+    if (heriTopo_[frontier].removed || heriTopo_[frontier].confirmed) {
+      ROS_WARN("drop stale local frontier label %d during frontier update", frontier);
+      frontier_it = frontiers.erase(frontier_it);
+      continue;
+    }
     local_frontier_labels_.push_back(frontier);
+    ++frontier_it;
   }
 }
 
@@ -763,6 +770,10 @@ bool GlobalTopoManager::frontierClassify(int current_explore_branch, std::vector
   NodeSet branches_need_to_backtracking;
   for (auto frontier_label: local_frontier_labels_copy) {
     NodeData local_frontier = heriTopo_[frontier_label];
+    if (local_frontier.removed || local_frontier.confirmed) {
+      ROS_WARN("drop stale frontier label %d during frontier classify", frontier_label);
+      continue;
+    }
     int parent_junction_label = local_frontier.parent_junction_label;
     int parent_branch_label = local_frontier.parent_branch_label;
     if (parent_branch_label == current_explore_branch) {
@@ -849,7 +860,10 @@ void GlobalTopoManager::updateCurrentExploreBranch(int &current_explore_branch, 
   int min_distance_frontier = 10000;
   for (auto &item: missed_branches) {
     for (auto &frontier: item.second.frontiers) {
-      assert(!heriTopo_[frontier].confirmed);
+      if (heriTopo_[frontier].removed || heriTopo_[frontier].confirmed) {
+        ROS_WARN("drop stale missed frontier label %d while changing branch", frontier);
+        continue;
+      }
       Node parent_branch_node = heriTopo_[frontier].parent_branch_label;
       missed_branches_copy[parent_branch_node].frontiers.insert(frontier);
       int dis_from_current_2_frontier = squaredIdDistance(robot_current_id_, nodeLabel2Index(frontier));
@@ -861,7 +875,12 @@ void GlobalTopoManager::updateCurrentExploreBranch(int &current_explore_branch, 
     }
     
   }
-  assert(nearest_branch != -1);
+  if (nearest_branch == -1) {
+    ROS_WARN("all missed frontiers are stale while changing branch");
+    history_missed_branches.pop_back();
+    local_frontier_labels_.clear();
+    return;
+  }
 
 
   assert(local_frontier_labels_.empty());
@@ -896,7 +915,10 @@ bool GlobalTopoManager::localFrontierRelocate(int &current_explore_branch, std::
     min_distance_frontier = 100000;
     for (auto &item: missed_branches) {
       for (auto &frontier: item.second.frontiers) {
-        assert(!heriTopo_[frontier].confirmed);
+        if (heriTopo_[frontier].removed || heriTopo_[frontier].confirmed) {
+          ROS_WARN("drop stale missed frontier label %d during relocation", frontier);
+          continue;
+        }
         Node parent_branch_node = heriTopo_[frontier].parent_branch_label;
         missed_branches_copy[parent_branch_node].frontiers.insert(frontier);
         int dis_from_current_2_frontier = squaredIdDistance(robot_current_id_, nodeLabel2Index(frontier));
@@ -908,7 +930,12 @@ bool GlobalTopoManager::localFrontierRelocate(int &current_explore_branch, std::
       }
     }
 
-    assert(nearest_branch != -1);
+    if (nearest_branch == -1) {
+      ROS_WARN("all missed frontiers are stale during relocation");
+      history_missed_branches.pop_back();
+      local_frontier_labels_.clear();
+      return false;
+    }
     history_missed_branches.pop_back();
 
 
